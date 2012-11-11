@@ -1,0 +1,20 @@
+%%
+%% (c) 2012 Roman Tsisyk <roman@tsisyk.com>
+%% 
+
+{application, etarantool, [
+    {description, "Tarantool Client"},
+    {vsn, git},
+    {modules, [
+        etarantool_app,
+        etarantool,
+        etarantool_varint,
+        etarantool_iproto
+    ]},
+    {registered, []},
+    {applications, [
+        kernel,
+        stdlib
+     ]},
+    {env, []}
+]}.

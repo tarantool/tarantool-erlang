@@ -1,0 +1,70 @@
+@copyright 2012 Roman Tsisyk
+@author Roman Tsisyk <roman@tsisyk.com>
+    [http://roman.tsisyk.com/]
+
+@doc
+== Overview ==
+ETarantool is an Erlang client for Tarantool/Box NoSQL database.
+
+Tarantool/Box is an efficient in-memory data store.
+
+This library uses Tarantool's binary request/response protocol, called IPROTO.
+IPROTO features a complete access to Tarantool functionality, including:
+<ul>
+    <li>request multiplexing, e.g. ability to asynchronously issue multiple
+    requests via the same connection</li>
+    <li>response format that supports zero-copy writes</li>
+</ul>
+
+== Status ==
+
+Early alpha. INSERT, SELECT, REPLACE and CALL is fully supported.
+UPDATE is not implemented.
+
+== Installation ==
+
+Please use <a href="https://github.com/basho/rebar">rebar</a>.
+
+The following lines are needed in your `rebar.config' in order to get this work:
+```
+{lib_dirs,["deps"]}.
+{deps, [
+    {'etarantool', ".*", {git, "git://github.com/rtsisyk/etarantool.git",
+        {branch, "master"}}},
+]}.
+'''
+
+== Examples ==
+```
+%% Connect
+> {ok, Conn} = etarantool:connect("localhost").
+{ok,<0.55.0>}
+
+%% Insert
+> {ok, Tuples} = etarantool:insert(Conn, 0, [{1, 2, "text"}], [return_tuple]).
+{ok,[[<<1,0,0,0>>,<<2,0,0,0>>,<<"text">>]]}
+
+%% Select
+> {ok, Tuples} = etarantool:select(Conn, 0, 0, [{1}]).
+{ok,[[<<1,0,0,0>>,<<2,0,0,0>>,<<"text">>]]}
+
+%% Call
+> {ok, Tuples} = etarantool:call(Conn, <<"box.select">>, [0, 0, 1]).
+{ok,[[<<1,0,0,0>>,<<2,0,0,0>>,<<"text">>]]}
+
+%% Delete
+> {ok, Tuples} = etarantool:delete(Conn, 0, [{1}], [return_tuple]).
+{ok,[[<<1,0,0,0>>,<<2,0,0,0>>,<<"text">>]]}
+
+%% Close
+> ok = etarantool:close(Conn).
+ok
+
+'''
+
+@end
+
+@reference <a href="http://tarantool.org/">Tarantool homepage</a>
+@reference <a href=
+"https://github.com/mailru/tarantool/blob/master/doc/box-protocol.txt">
+Tarantool/Box IPROTO protocol reference</a>

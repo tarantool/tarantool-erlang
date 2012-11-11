@@ -1,0 +1,12 @@
+ebin/
+deps/
+priv/
+temp/
+.eunit/
+.~*
+*~
+*.o
+*.beam
+rebar
+.project
+.settings/
