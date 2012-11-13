@@ -36,7 +36,7 @@
 
     encode_tuple/1,
     encode_tuples/1,
-    
+
     decode_tuple/1,
     decode_tuples/1,
     decode_tuples/2
@@ -125,44 +125,38 @@ encode_request_body_call(ProcName, Args, _Opts) ->
       ProcBinary/binary>>}.
 
 decode_response(Binary) ->
-    {Type, BodyLength, RequestId, BinaryTail} = decode_response_header(Binary),
-    <<Body:BodyLength/binary-unit:8, BinaryTail2/binary>> = BinaryTail,
-    {Type, RequestId, Body, BinaryTail2}.
+    {Type, BodyLength, RequestId, Offset} = decode_response_header(Binary),
+    <<_Header:Offset/binary, Body:BodyLength/binary-unit:8, _BinaryTail2/binary>> = Binary,
+    {Type, RequestId, Body, Offset + BodyLength}.
 
 decode_response_header(Binary) ->
     <<Type:4/little-signed-integer-unit:8,
       BodyLength:4/little-signed-integer-unit:8,
       RequestId:4/little-signed-integer-unit:8,
-      BinaryTail/binary>> = Binary,
-    {Type, BodyLength, RequestId, BinaryTail}.
+      _BinaryTail/binary>> = Binary,
+    {Type, BodyLength, RequestId, 3 * 4}.
 
-decode_response_body(?REQUEST_TYPE_PING, <<>>) ->
-    {ok, []};
-
-decode_response_body(Type, Body) ->
-    <<ReturnCode:4/integer-signed-little-unit:8, BodyTail/binary>> = Body,
-    decode_response_body(Type, ReturnCode, BodyTail).
-
-decode_response_body(?REQUEST_TYPE_SELECT, 0, Body) ->
-    {Tuples, <<>>} = decode_tuples(Body),
+decode_response_body(<<0:4/integer-unit:8,
+        Count:4/integer-signed-little-unit:8, Tail/binary>>,  Type)
+        when (Type =:= ?REQUEST_TYPE_SELECT) or (Type =:= ?REQUEST_TYPE_CALL) ->
+    {Tuples, _Offset} = decode_tuples(Tail, [], Count),
     {ok, Tuples};
 
-decode_response_body(?REQUEST_TYPE_INSERT, 0,
-        <<Count:4/integer-signed-little-unit:8>>) ->
+decode_response_body(<<0:4/integer-unit:8,
+        Count:4/integer-signed-little-unit:8, Tail/binary>>, Type)
+        when (Type =:= ?REQUEST_TYPE_INSERT) or (Type =:= ?REQUEST_TYPE_DELETE) ->
+    {Tuples, _Offset} = decode_tuples(Tail, [], Count),
+    {ok, Tuples};
+
+decode_response_body(<<0:4/integer-unit:8,
+        Count:4/integer-signed-little-unit:8>>, Type)
+        when (Type =:= ?REQUEST_TYPE_INSERT) or (Type =:= ?REQUEST_TYPE_DELETE) ->
     {ok, Count};
 
-decode_response_body(?REQUEST_TYPE_INSERT, 0,
-        <<Count:4/integer-signed-little-unit:8, Binary/binary>>) ->
-    {Tuples, <<>>} = decode_tuples(Binary, Count),
-    {ok, Tuples};
+decode_response_body(<<>>, ?REQUEST_TYPE_PING) ->
+    {ok, []};
 
-decode_response_body(?REQUEST_TYPE_DELETE, 0, Body) ->
-    decode_response_body(?REQUEST_TYPE_INSERT, 0, Body);
-
-decode_response_body(?REQUEST_TYPE_CALL, 0, Body) ->
-    decode_response_body(?REQUEST_TYPE_SELECT, 0, Body);
-
-decode_response_body(_Type, ReturnCode, ErrorMessage)
+decode_response_body(<<ReturnCode:4/integer-signed-little-unit:8, ErrorMessage/binary>>, _Type)
         when ReturnCode =/= 0 ->
     {error, decode_returncode(ReturnCode), ErrorMessage}.
 
@@ -212,33 +206,39 @@ encode_tuples([Tuple|Tuples], Count, Tail) ->
 encode_tuples([], Count, Tail) ->
     <<Count:4/integer-signed-little-unit:8, Tail/binary>>.
 
-decode_tuple(Binary) ->
-    <<Size:4/integer-signed-little-unit:8,
-      Cardinality:4/integer-signed-little-unit:8,
-      TupleBinary:Size/binary,
-      BinaryTail/binary>> = Binary,
-    {Tuple, <<>>} = decode_tuple(TupleBinary, [], Cardinality),
-    {Tuple, BinaryTail}.
+decode_tuple(<<Cardinality:4/integer-signed-little-unit:8, Tail/binary>>) ->
+    decode_tuple(Tail, Cardinality, [], 0).
 
-decode_tuple(Binary, Fields, 0) ->
-    {lists:reverse(Fields), Binary};
-decode_tuple(Binary, Fields, Remain) ->
-    {FieldSize, BinaryTail} = etarantool_varint:decode_varuint32(Binary),
-    <<Field:FieldSize/binary-unit:8, BinaryTail2/binary>> = BinaryTail,
-    decode_tuple(BinaryTail2, [Field|Fields], Remain - 1).
+%% roman: Use unrolled version of tarantool_varuint32:decode_varuint32 to
+%% speedup operations on binaries
+decode_tuple(<<0:1, ValuePart:7/integer-unsigned, Tail/binary>>,
+             Cardinality, Fields, Value) ->
+    Size = (Value bsl 7) bor ValuePart,
+    %% last part of varuint32
+    <<Field:Size/binary-unit:8, Tail2/binary>> = Tail,
+    decode_tuple(Tail2, Cardinality - 1, [Field|Fields], 0);
+decode_tuple(<<1:1, ValuePart:7/integer-unsigned, Tail2/binary>>,
+             Cardinality, Fields, Value) ->
+    %% next part of varuint32
+    decode_tuple(Tail2, Cardinality, Fields, (Value bsl 7) bor ValuePart);
+decode_tuple(Binary, 0, Fields, _Value) ->
+    {lists:reverse(Fields), Binary}.
 
-decode_tuples(Binary) ->
-    <<Count:4/integer-signed-little-unit:8, BinaryTail/binary>> = Binary,
-    decode_tuples(BinaryTail, Count).
+decode_tuples(<<Count:4/integer-signed-little-unit:8, Binary/binary>>) ->
+    decode_tuples(Binary, [], Count).
 
 decode_tuples(Binary, Count) ->
     decode_tuples(Binary, [], Count).
 
-decode_tuples(Binary, Tuples, 0) ->
-    {lists:reverse(Tuples), Binary};
-decode_tuples(Binary, Tuples, Remain) ->
-    {Tuple, BinaryTail} = decode_tuple(Binary),
-    decode_tuples(BinaryTail, [Tuple|Tuples], Remain - 1).
+decode_tuples(<<Size:4/integer-signed-little-unit:8,
+                Cardinality:4/integer-signed-little-unit:8,
+                TupleBinary:Size/binary,
+                BinaryTail/binary>>,
+              Tuples, Remain) when Remain > 0 ->
+    {Tuple, <<>>} = decode_tuple(TupleBinary, Cardinality, [], 0),
+    decode_tuples(BinaryTail, [Tuple|Tuples], Remain - 1);
+decode_tuples(Binary, Tuples, _Remain) ->
+    {lists:reverse(Tuples), Binary}.
 
 decode_returncode(0) -> ok;
 decode_returncode(16#00000401) -> tuple_is_ro;

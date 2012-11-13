@@ -39,14 +39,14 @@ encode_varuint32_next(_Value, Tail) ->
     Tail.
 
 %% @doc Decodes `Value' from the `Binary' chunk.
-%% `Tail' is the remain part of the source `Binary'.
+%% `Size' is the byte size of decoded chunk.
 %% @end
 -spec decode_varuint32(binary()) ->
-    {Value :: pos_integer(), Tail::binary()}.
+    {Value :: pos_integer(), Size::pos_integer()}.
 decode_varuint32(Binary) ->
-    decode_varuint32(Binary, 0).
+    decode_varuint32(Binary, 0, 0).
 
-decode_varuint32(<<0:1, ValuePart:7/integer-unsigned, Tail/binary>>, Value) ->
-    {(Value bsl 7) bor ValuePart, Tail};
-decode_varuint32(<<1:1, ValuePart:7/integer-unsigned, Tail/binary>>, Value) ->
-    decode_varuint32(Tail, (Value bsl 7) bor ValuePart).
+decode_varuint32(<<0:1, ValuePart:7/integer-unsigned, _Tail/binary>>, Size, Value) ->
+    {(Value bsl 7) bor ValuePart, Size + 1};
+decode_varuint32(<<1:1, ValuePart:7/integer-unsigned, Tail/binary>>, Size, Value) ->
+    decode_varuint32(Tail, Size + 1, (Value bsl 7) bor ValuePart).

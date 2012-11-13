@@ -335,9 +335,7 @@ handle_cast(Msg, State) ->
 %% @private
 handle_info({tcp, Socket, Packet}, State)
         when Socket =:= State#state.socket->
-    %% Append saved parts from the buffer
-    Packet2 = <<(State#state.packet_buf)/binary, Packet/binary>>,
-    recv_packet(Packet2, State);
+    recv_packet(Packet, State);
 
 handle_info({tcp_closed, Socket}, State)
         when Socket =:= State#state.socket ->
@@ -366,34 +364,36 @@ send_packet(Type, Body, From, State) ->
     ok = gen_tcp:send(State#state.socket, Request),
     {noreply, State2}.
 
-%% TODO(roman): move "when" check to etarantoo_iproto
-recv_packet(Binary, State)
-        when erlang:byte_size(Binary) < ?PACKET_MIN_SIZE ->
-    State2 = State#state{ packet_buf = Binary },
+recv_packet(Packet, State)
+        when ((byte_size(State#state.packet_buf) + byte_size(Packet)) <
+                ?PACKET_MIN_SIZE) ->
+    State2 = State#state{
+        packet_buf = <<(State#state.packet_buf)/binary, Packet/binary>>
+    },
     {noreply, State2};
 
-recv_packet(Binary, State) ->
-    {Type, BodyLength, RequestId, BinaryTail} =
+recv_packet(Packet, State) ->
+    Binary = <<(State#state.packet_buf)/binary, Packet/binary>>,
+    {Type, BodyLength, RequestId, HeaderSize} =
         etarantool_iproto:decode_response_header(Binary),
-    case BinaryTail of
-        <<Body:BodyLength/binary-unit:8, BinaryTail2/binary>> ->
+    case Binary of
+        <<_Header:HeaderSize/binary, Body:BodyLength/binary-unit:8, BinaryTail2/binary>> ->
             %% Response is fully received, can start parsing it.
-            State2 = State#state{packet_buf = BinaryTail2},
-            recv_packet(Type, RequestId, Body, State2);
-        _Else ->
+            Requests = State#state.requests,
+            %% Type of request must match type of response
+            {Type, From} = Requests:fetch(RequestId),
+            State2 = State#state {
+                requests = Requests:erase(RequestId),
+                packet_buf = BinaryTail2
+            },
+            %% TODO: handle parse error here
+            Result = etarantool_iproto:decode_response_body(Body, Type),
+            gen_server:reply(From, Result),
+            {noreply, State2};
+        _Binary2 ->
             %% Response is not fully recevied, save the part to process later.
             State2 = State#state{packet_buf = Binary},
             {noreply, State2}
     end.
 
-recv_packet(Type, RequestId, Body, State) ->
-    Requests = State#state.requests,
-    %% Type of request must match type of response
-    {Type, From} = Requests:fetch(RequestId),
-    State2 = State#state {
-        requests = Requests:erase(RequestId)
-    },
-    %% TODO: handle parse error here
-    Result = etarantool_iproto:decode_response_body(Type, Body),
-    gen_server:reply(From, Result),
-    {noreply, State2}.
+
