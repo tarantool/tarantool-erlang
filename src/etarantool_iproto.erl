@@ -28,7 +28,7 @@
     encode_request_body_call/3,
 
     decode_response/1,
-    decode_response_header/1,
+    decode_responses/3,
     decode_response_body/2,
 
     encode_field/1,
@@ -125,16 +125,25 @@ encode_request_body_call(ProcName, Args, _Opts) ->
       ProcBinary/binary>>}.
 
 decode_response(Binary) ->
-    {Type, BodyLength, RequestId, Offset} = decode_response_header(Binary),
-    <<_Header:Offset/binary, Body:BodyLength/binary-unit:8, _BinaryTail2/binary>> = Binary,
-    {Type, RequestId, Body, Offset + BodyLength}.
-
-decode_response_header(Binary) ->
     <<Type:4/little-signed-integer-unit:8,
       BodyLength:4/little-signed-integer-unit:8,
       RequestId:4/little-signed-integer-unit:8,
+      Body:BodyLength/binary,
       _BinaryTail/binary>> = Binary,
-    {Type, BodyLength, RequestId, 3 * 4}.
+    {Type, RequestId, Body, 3 * 4 + BodyLength}.
+
+decode_responses(
+        <<Type:4/little-signed-integer-unit:8,
+          BodyLength:4/little-signed-integer-unit:8,
+          RequestId:4/little-signed-integer-unit:8,
+          Body:BodyLength/binary,
+          BinaryTail2/binary>>, ReduceFun, Args) ->
+    Result = decode_response_body(Body, Type),
+    Args2 = ReduceFun(Type, RequestId, Result, Args),
+    decode_responses(BinaryTail2, ReduceFun, Args2);
+
+decode_responses(Packet, _ReduceFun, Args) ->
+    {Args, Packet}.
 
 decode_response_body(<<0:4/integer-unit:8,
         Count:4/integer-signed-little-unit:8, Tail/binary>>,  Type)

@@ -361,34 +361,16 @@ send_packet(Type, Body, From, State) ->
     ok = gen_tcp:send(State#state.socket, Request),
     {noreply, State2}.
 
-recv_packet(Packet, State)
-        when ((byte_size(State#state.packet_buf) + byte_size(Packet)) <
-                ?PACKET_MIN_SIZE) ->
-    State2 = State#state{
-        packet_buf = <<(State#state.packet_buf)/binary, Packet/binary>>
-    },
-    {noreply, State2};
-
 recv_packet(Packet, State) ->
-    Binary = <<(State#state.packet_buf)/binary, Packet/binary>>,
-    {Type, BodyLength, RequestId, HeaderSize} =
-        etarantool_iproto:decode_response_header(Binary),
-    case Binary of
-        <<_Header:HeaderSize/binary, Body:BodyLength/binary-unit:8, BinaryTail2/binary>> ->
-            %% Response is fully received, can start parsing it.
-            %% Type of request must match type of response
-            {Type, From} = erlang:erase(RequestId),
-            State2 = State#state {
-                packet_buf = BinaryTail2
-            },
-            %% TODO: handle parse error here
-            Result = etarantool_iproto:decode_response_body(Body, Type),
-            gen_server:reply(From, Result),
-            {noreply, State2};
-        _Binary2 ->
-            %% Response is not fully recevied, save the part to process later.
-            State2 = State#state{packet_buf = Binary},
-            {noreply, State2}
-    end.
+    PacketAssembled = <<(State#state.packet_buf)/binary, Packet/binary>>,
+    {true, Tail} = etarantool_iproto:decode_responses(
+        PacketAssembled, fun process_packet/4, true),
+    State2 = State#state{packet_buf = Tail},
+    {noreply, State2}.
 
-
+process_packet(Type, RequestId, Result, true) ->
+    %% Type of request must match type of response
+    {Type, From} = erlang:erase(RequestId),
+    %% TODO: handle parse error here
+    gen_server:reply(From, Result),
+    true.
