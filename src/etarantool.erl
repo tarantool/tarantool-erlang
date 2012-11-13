@@ -98,7 +98,6 @@
 -record(state, {
     socket :: gen_tcp:socket(),
     request_id :: pos_integer(),
-    requests :: dict(),
     packet_buf = <<>> :: binary()
 }).
 
@@ -269,8 +268,7 @@ init([Address, Port, Opts]) ->
     ok = gen_server:cast(self(), {connect, Address, Port, Opts}),
     State = #state{
         socket = undefined,
-        request_id = 0,
-        requests = dict:new()
+        request_id = 0
     },
     {ok, State}.
 
@@ -355,9 +353,8 @@ code_change(_OldVsn, State, _Extra) ->
 
 send_packet(Type, Body, From, State) ->
     RequestId = State#state.request_id,
-    Requests = State#state.requests,
+    erlang:put(RequestId, {Type, From}),
     State2 = State#state{
-        requests = Requests:store(RequestId, {Type, From}),
         request_id = RequestId + 1
     },
     Request = etarantool_iproto:encode_request(Type, RequestId, Body),
@@ -379,11 +376,9 @@ recv_packet(Packet, State) ->
     case Binary of
         <<_Header:HeaderSize/binary, Body:BodyLength/binary-unit:8, BinaryTail2/binary>> ->
             %% Response is fully received, can start parsing it.
-            Requests = State#state.requests,
             %% Type of request must match type of response
-            {Type, From} = Requests:fetch(RequestId),
+            {Type, From} = erlang:erase(RequestId),
             State2 = State#state {
-                requests = Requests:erase(RequestId),
                 packet_buf = BinaryTail2
             },
             %% TODO: handle parse error here
