@@ -98,7 +98,8 @@
 -record(state, {
     socket :: gen_tcp:socket(),
     request_id :: pos_integer(),
-    packet_buf = <<>> :: binary()
+    packet_buf = <<>> :: binary(),
+    mode :: atom()
 }).
 
 %% ------------------------------------------------------------------
@@ -116,7 +117,22 @@ connect(Address, Port) ->
 %% @doc Connects to a server `Host':`Port' using Tarantool's binary protocol
 %% (IPROTO). The `Address' argument can be either a hostname, or an IP address.
 %% 
-%% `Opts' is `proplist' with no additional options currently supported.
+%% `Opts' is `proplist' with the following options:
+%% <ul>
+%%  <li><b>mode</b> - configures how to process results from a server
+%%   <ol>
+%%      <li><b>blocked</b> (default) - perform requests in blocking mode.
+%%          Client waits for the result and then returns it to the user.</li>
+%%      <li><b>async</b> -  perform request in asynchronous mode. Client
+%%          returns `{ok, RequestId}' immediately and sends message
+%%          `{etarantool, Conn, RequestId, Result}' with the same `RequestId'
+%%          to the callee when the response is got from a server.</li>
+%%      <li><b>discard</b> - discard all results. Client returns
+%%          `{ok, RequestId}' immediately and ignores all responces from a
+%%           server (including error messages).</li>
+%%   </ol>
+%% </li>
+%% </ul>
 %%
 %% @end
 -spec connect(inet:ip_address() | inet:hostname(),
@@ -315,16 +331,21 @@ handle_call(Msg, _From, State) ->
     {stop, {invalid_call, Msg}, State}.
 
 %% @private
-handle_cast({connect, Address, Port, _Opts}, State) ->
+handle_cast({connect, Address, Port, Opts}, State) ->
+    Mode = proplists:get_value(mode, Opts, blocked),
+    true = (Mode =:= blocked) or (Mode =:= async) or (Mode =:= discard),
     TcpOpts = [
         {exit_on_close, true},
         {mode, binary},
-        {packet, 0},
-        {active, true},
+        {packet, raw},
+%        {delay_send, Mode =/= blocked},
         {keepalive, true}
     ],
     {ok, Socket} = gen_tcp:connect(Address, Port, TcpOpts),
-    State2 = State#state{socket = Socket},
+    State2 = State#state{
+        socket = Socket,
+        mode = Mode
+    },
     {noreply, State2};
 
 handle_cast(Msg, State) ->
@@ -337,7 +358,6 @@ handle_info({tcp, Socket, Packet}, State)
 
 handle_info({tcp_closed, Socket}, State)
         when Socket =:= State#state.socket ->
-    io:format("Disconnect\n"),
     {stop, normal, State};
 
 handle_info(Msg, State) ->
@@ -353,24 +373,44 @@ code_change(_OldVsn, State, _Extra) ->
 
 send_packet(Type, Body, From, State) ->
     RequestId = State#state.request_id,
-    erlang:put(RequestId, {Type, From}),
     State2 = State#state{
         request_id = RequestId + 1
     },
     Request = etarantool_iproto:encode_request(Type, RequestId, Body),
     ok = gen_tcp:send(State#state.socket, Request),
-    {noreply, State2}.
+    case State#state.mode of
+        blocked ->
+            erlang:put(RequestId, {From, Type}),
+            {noreply, State2};
+        async ->
+            {Callee, _Ref} = From,
+            erlang:put(RequestId, {Callee, Type}),
+            {reply, {ok, RequestId}, State2};
+        discard ->
+            {reply, {ok, RequestId}, State2}
+    end.
 
 recv_packet(Packet, State) ->
     PacketAssembled = <<(State#state.packet_buf)/binary, Packet/binary>>,
+    ProcessFun = case State#state.mode of
+        blocked -> fun process_packet_blocked/4;
+        async   -> fun process_packet_async/4;
+        discard -> fun process_packet_discard/4
+    end,
     {true, Tail} = etarantool_iproto:decode_responses(
-        PacketAssembled, fun process_packet/4, true),
+        PacketAssembled, ProcessFun, true),
     State2 = State#state{packet_buf = Tail},
     {noreply, State2}.
 
-process_packet(Type, RequestId, Result, true) ->
-    %% Type of request must match type of response
-    {Type, From} = erlang:erase(RequestId),
-    %% TODO: handle parse error here
-    gen_server:reply(From, Result),
+process_packet_blocked(Type, RequestId, Result, true) ->
+    {From, Type} = erlang:erase(RequestId),
+    gen_server:reply(From, Result), true.
+
+process_packet_async(Type, RequestId, Result, true) ->
+    {Callee, Type} = erlang:erase(RequestId),
+    Callee ! {etarantool, erlang:self(), RequestId, Result},
     true.
+
+process_packet_discard(_Type, _RequestId, _Result, true) ->
+    true.
+

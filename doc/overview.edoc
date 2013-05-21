@@ -1,12 +1,11 @@
-@copyright 2012 Roman Tsisyk
+@copyright 2012-2013 Roman Tsisyk
 @author Roman Tsisyk <roman@tsisyk.com>
-    [http://roman.tsisyk.com/]
 
 @doc
 == Overview ==
-ETarantool is an Erlang client for Tarantool/Box NoSQL database.
+ETarantool is an Erlang client for Tarantool NoSQL database.
 
-Tarantool/Box is an efficient in-memory data store.
+Tarantool is an efficient in-memory data store.
 
 This library uses Tarantool's binary request/response protocol, called IPROTO.
 IPROTO features a complete access to Tarantool functionality, including:
@@ -19,7 +18,7 @@ IPROTO features a complete access to Tarantool functionality, including:
 == Status ==
 
 Early alpha. INSERT, SELECT, REPLACE and CALL is fully supported.
-UPDATE is not implemented.
+UPDATE is not implemented. Request multiplexing is supported.
 
 == Installation ==
 
@@ -67,4 +66,4 @@ ok
 @reference <a href="http://tarantool.org/">Tarantool homepage</a>
 @reference <a href=
 "https://github.com/mailru/tarantool/blob/master/doc/box-protocol.txt">
-Tarantool/Box IPROTO protocol reference</a>
+Tarantool IPROTO protocol reference</a>

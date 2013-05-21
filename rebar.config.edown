@@ -1,0 +1,21 @@
+%%
+%% (c) 2012 Roman Tsisyk <roman@tsisyk.com>
+%%
+
+{erl_opts, [debug_info, fail_on_warning]}.
+{lib_dirs,["deps"]}.
+{deps, [
+    {'edown', ".*", {git, "git://github.com/esl/edown.git",
+        {branch, "master"}}}
+]}.
+
+{edoc_opts, [
+    {report_missing_types, true},
+    {doclet, edown_doclet},
+    {pretty_printer, erl_pp},
+    {src_path, ["src/"]},
+    {stylesheet, ""},
+    {image, ""},
+    {app_default,"http://www.erlang.org/doc/man"},
+    {top_level_readme, {"./README.md", "http://github.com/rtsisyk/etarantool"}}
+]}.

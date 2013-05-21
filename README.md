@@ -1,25 +1,25 @@
 
 
-#The etarantool application#
+# The etarantool application #
 
+Copyright (c) 2012-2013 Roman Tsisyk
 
-Copyright (c) 2012 Roman Tsisyk
-
-__Authors:__ Roman Tsisyk ([`roman@tsisyk.com`](mailto:roman@tsisyk.com)) (_web site:_ [`http://roman.tsisyk.com/`](http://roman.tsisyk.com/)).
+__Authors:__ Roman Tsisyk ([`roman@tsisyk.com`](mailto:roman@tsisyk.com)).
 
 __References__* [Tarantool homepage](http://tarantool.org/)
 * [
-Tarantool/Box IPROTO protocol reference](https://github.com/mailru/tarantool/blob/master/doc/box-protocol.txt)
+Tarantool IPROTO protocol reference](https://github.com/mailru/tarantool/blob/master/doc/box-protocol.txt)
 
 
 
-###<a name="Overview">Overview</a>##
+
+### <a name="Overview">Overview</a> ###
 
 
+ETarantool is an Erlang client for Tarantool NoSQL database.
 
-ETarantool is an Erlang client for Tarantool/Box NoSQL database.
-
-Tarantool/Box is an efficient in-memory data store.This library uses Tarantool's binary request/response protocol, called IPROTO.
+Tarantool is an efficient in-memory data store.
+This library uses Tarantool's binary request/response protocol, called IPROTO.
 IPROTO features a complete access to Tarantool functionality, including:
 * request multiplexing, e.g. ability to asynchronously issue multiple
     requests via the same connection
@@ -27,25 +27,31 @@ IPROTO features a complete access to Tarantool functionality, including:
 
 
 
-###<a name="Status">Status</a>##
-
+### <a name="Status">Status</a> ###
 
 Early alpha. INSERT, SELECT, REPLACE and CALL is fully supported.
-UPDATE is not implemented.
-
-###<a name="Installation">Installation</a>##
+UPDATE is not implemented. Request multiplexing is supported.
 
 
-Please use [rebar](https://github.com/basho/rebar).The following lines are needed in your `rebar.config` in order to get this work:
-<pre>{lib_dirs,["deps"]}.
+### <a name="Installation">Installation</a> ###
+
+Please use [rebar](https://github.com/basho/rebar).
+The following lines are needed in your `rebar.config` in order to get this work:
+
+```
+{lib_dirs,["deps"]}.
 {deps, [
     {'etarantool', ".*", {git, "git://github.com/rtsisyk/etarantool.git",
         {branch, "master"}}},
-]}.</pre>
+]}.
+```
 
-###<a name="Examples">Examples</a>##
 
-<pre>%% Connect
+### <a name="Examples">Examples</a> ###
+
+
+```
+%% Connect
 > {ok, Conn} = etarantool:connect("localhost").
 {ok,<0.55.0>}
 
@@ -67,10 +73,12 @@ Please use [rebar](https://github.com/basho/rebar).The following lines are neede
 
 %% Close
 > ok = etarantool:close(Conn).
-ok</pre>
+ok
+```
 
 
-##Modules##
+
+## Modules ##
 
 
 <table width="100%" border="0" summary="list of modules">
