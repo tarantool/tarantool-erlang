@@ -3,10 +3,10 @@
 %% @author Roman Tsisyk <roman@tsisyk.com>
 %%      [http://roman.tsisyk.com/]
 %% 
-%% @doc Tarantool/Box varuint32 (LEB128) encoding/decoding module.
+%% @doc Tarantool/Box varuint32 (BER) encoding/decoding module.
 %% @end
 %% 
-%% @reference <a href="http://en.wikipedia.org/wiki/LEB128">
+%% @reference <a href="http://en.wikipedia.org/wiki/Variable-length_quantity">
 %% Wikipedia Article</a>
 %% 
 
