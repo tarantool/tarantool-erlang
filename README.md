@@ -1,6 +1,6 @@
 
 
-# The etarantool application #
+# Erlang connector to 1.5 #
 
 Copyright (c) 2012-2013 Roman Tsisyk
 
