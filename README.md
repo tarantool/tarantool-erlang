@@ -6,9 +6,9 @@ Copyright (c) 2012-2013 Roman Tsisyk
 
 __Authors:__ Roman Tsisyk ([`roman@tsisyk.com`](mailto:roman@tsisyk.com)).
 
-__References__* [Tarantool homepage](http://tarantool.org/)
-* [
-Tarantool IPROTO protocol reference](https://github.com/mailru/tarantool/blob/master/doc/box-protocol.txt)
+__References__
+* [Tarantool homepage](http://tarantool.org/)
+* [Tarantool IPROTO protocol reference](https://github.com/tarantool/tarantool/blob/1.5.5/doc/box-protocol.txt)
 
 
 
