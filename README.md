@@ -8,7 +8,7 @@ __Authors:__ Roman Tsisyk ([`roman@tsisyk.com`](mailto:roman@tsisyk.com)).
 
 __References__
 * [Tarantool homepage](http://tarantool.org/)
-* [Tarantool IPROTO protocol reference](https://github.com/tarantool/tarantool/blob/master/doc/sphinx/dev_guide/box-protocol.rst)
+* [Tarantool IPROTO protocol reference](https://github.com/tarantool/tarantool/blob/1.5.5/doc/box-protocol.txt)
 
 
 
